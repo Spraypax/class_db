@@ -4,8 +4,10 @@
 #include <stdio.h>
 #include <sys/types.h> // Pour ssize_t
 #include "../include/table.h"
+#include "../include/btree.h"
 
 
+Node* root = NULL; // Déclarer l'arbre binaire
 
 // Implémentation de getline
 ssize_t my_getline(char **lineptr, size_t *n, FILE *stream) {
@@ -136,7 +138,7 @@ MetaCommandResult do_meta_command(InputBuffer* input_buffer) {
   }
 }
 
-PrepareResult prepare_insert(InputBuffer* input_buffer, Statement* statement, Table* table) {
+PrepareResult prepare_insert(InputBuffer* input_buffer, Statement* statement) {
     statement->type = STATEMENT_INSERT;
 
     // On suppose que l'instruction est de la forme "insert <id> <name>"
@@ -153,21 +155,18 @@ PrepareResult prepare_insert(InputBuffer* input_buffer, Statement* statement, Ta
     new_row.id = id;
     strncpy(new_row.name, name, COLUMN_SIZE);
 
-    // Ajouter la ligne à la table
-    if (table->num_rows < ROW_SIZE) {
-        table->rows[table->num_rows] = new_row;
-        table->num_rows++;
-        return PREPARE_SUCCESS;
-    } else {
-        printf("Table is full!\n");
-        return PREPARE_UNRECOGNIZED_STATEMENT;
-    }
+    // Insérer la ligne dans l'arbre binaire
+    root = insert(root, new_row);
+
+    return PREPARE_SUCCESS;
 }
 
-void execute_select(Table* table) {
-    for (size_t i = 0; i < table->num_rows; i++) {
-        Row row = table->rows[i];
-        printf("Row %d: id = %d, name = %s\n", i, row.id, row.name);
+void execute_select() {
+    if (root == NULL) {
+        printf("Aucune donnee disponible.\n");
+    } else {
+        printf("Donnees actuelles dans l'arbre :\n");
+        inorder(root); // Parcours infixe pour afficher les données triées
     }
 }
 
@@ -189,7 +188,7 @@ PrepareResult prepare_statement(InputBuffer* input_buffer,
 void execute_statement(InputBuffer* input_buffer, Statement* statement, Table* table) {
     switch (statement->type) {
         case (STATEMENT_INSERT): {
-            if (prepare_insert(input_buffer, statement, table) == PREPARE_SUCCESS) {
+            if (prepare_insert(input_buffer, statement) == PREPARE_SUCCESS) {
                 printf("Insert completed.\n");
             } else {
                 printf("Insert failed.\n");
@@ -208,11 +207,11 @@ void execute_statement(InputBuffer* input_buffer, Statement* statement, Table* t
 
 void repl(void) {
     InputBuffer* input_buffer = new_input_buffer();
-    Table* table = new_table(); // Créer une nouvelle table
 
     while (true) {
         print_prompt();
         read_input(input_buffer);
+
         if (input_buffer->buffer[0] == '.') {
             switch (do_meta_command(input_buffer)) {
                 case (META_COMMAND_SUCCESS):
@@ -222,17 +221,35 @@ void repl(void) {
                     continue;
             }
         }
+
         Statement statement;
         switch (prepare_statement(input_buffer, &statement)) {
             case (PREPARE_SUCCESS):
-                printf("recognized statement\n");
+                printf("Recognized statement.\n");
                 break;
             case (PREPARE_UNRECOGNIZED_STATEMENT):
-                printf("Unrecognized keyword at start of '%s'.\n",
-                       input_buffer->buffer);
+                printf("Unrecognized keyword at start of '%s'.\n", input_buffer->buffer);
                 continue;
         }
-        execute_statement(input_buffer, &statement, table); // Passer la table à la fonction
-        printf("Executed.\n");
+
+        switch (statement.type) {
+            case STATEMENT_INSERT:
+                if (prepare_insert(input_buffer, &statement) == PREPARE_SUCCESS) {
+                    printf("Insert completed.\n");
+                } else {
+                    printf("Insert failed.\n");
+                }
+                break;
+
+            case STATEMENT_SELECT:
+                execute_select();
+                break;
+
+            default:
+                printf("Unrecognized statement type.\n");
+                break;
+        }
     }
+
+    close_input_buffer(input_buffer);
 }
