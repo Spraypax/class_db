@@ -168,12 +168,24 @@ PrepareResult prepare_insert(InputBuffer* input_buffer, Statement* statement) {
     return PREPARE_SUCCESS;
 }
 
-void execute_select() {
-    if (root == NULL) {
-        printf("Aucune donnee disponible.\n");
+void execute_select(InputBuffer* input_buffer) {
+    int id;
+    // Vérifie si un ID est fourni dans la commande `select <id>`
+    if (sscanf(input_buffer->buffer, "select %d", &id) == 1) {
+        Node* result = search(root, id);
+        if (result != NULL) {
+            printf("Resultat trouve : ID: %d, Name: %s\n", result->row.id, result->row.name);
+        } else {
+            printf("ID %d non trouve.\n", id);
+        }
     } else {
-        printf("Donnees actuelles dans l'arbre :\n");
-        inorder(root); // Parcours infixe pour afficher les données triées
+        // Si aucun ID n'est fourni, affiche tout l'arbre
+        if (root == NULL) {
+            printf("Aucune donnee disponible.\n");
+        } else {
+            printf("Donnees actuelles dans l'arbre :\n");
+            inorder(root);
+        }
     }
 }
 
@@ -184,7 +196,7 @@ PrepareResult prepare_statement(InputBuffer* input_buffer,
     statement->type = STATEMENT_INSERT;
     return PREPARE_SUCCESS;
   }
-  if (strcmp(input_buffer->buffer, "select") == 0) {
+  if (strncmp(input_buffer->buffer, "select", 6) == 0) {
     statement->type = STATEMENT_SELECT;
     return PREPARE_SUCCESS;
   }
@@ -206,7 +218,7 @@ void execute_statement(InputBuffer* input_buffer, Statement* statement) {
             break;
         }
         case (STATEMENT_SELECT): {
-            execute_select();
+            execute_select(input_buffer);
             break;
         }
 	case STATEMENT_DELETE: {
