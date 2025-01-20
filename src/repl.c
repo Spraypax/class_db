@@ -72,9 +72,16 @@ META_COMMAND_SUCCESS,
   META_COMMAND_UNRECOGNIZED_COMMAND
 } MetaCommandResult;
 
-typedef enum { PREPARE_SUCCESS, PREPARE_UNRECOGNIZED_STATEMENT } PrepareResult;
+typedef enum {
+	PREPARE_SUCCESS,
+	PREPARE_UNRECOGNIZED_STATEMENT
+} PrepareResult;
 
-typedef enum { STATEMENT_INSERT, STATEMENT_SELECT } StatementType;
+typedef enum {
+	STATEMENT_INSERT,
+	STATEMENT_SELECT,
+	STATEMENT_DELETE
+} StatementType;
 
 typedef struct {
   StatementType type;
@@ -181,26 +188,40 @@ PrepareResult prepare_statement(InputBuffer* input_buffer,
     statement->type = STATEMENT_SELECT;
     return PREPARE_SUCCESS;
   }
-
+  if (strncmp(input_buffer->buffer, "delete", 6) == 0) {
+    statement->type = STATEMENT_DELETE;
+    return PREPARE_SUCCESS;
+  }
   return PREPARE_UNRECOGNIZED_STATEMENT;
 }
 
-void execute_statement(InputBuffer* input_buffer, Statement* statement, Table* table) {
+void execute_statement(InputBuffer* input_buffer, Statement* statement) {
     switch (statement->type) {
         case (STATEMENT_INSERT): {
             if (prepare_insert(input_buffer, statement) == PREPARE_SUCCESS) {
-                printf("Insert completed.\n");
+                printf("Insert completer.\n");
             } else {
-                printf("Insert failed.\n");
+                printf("Insert echouer.\n");
             }
             break;
         }
         case (STATEMENT_SELECT): {
-            execute_select(table);
+            execute_select();
+            break;
+        }
+	case STATEMENT_DELETE: {
+            int id;
+            // Extraire l'ID à supprimer depuis l'entrée utilisateur
+            if (sscanf(input_buffer->buffer, "delete %d", &id) != 1) {
+                printf("Syntaxe invalide. Utilisez : delete <id>\n");
+            break;
+            }
+            root = delete(root, id); // Suppression dans l'arbre binaire
+            printf("Suppression de l'ID %d effectuee.\n", id);
             break;
         }
         default:
-            printf("Unrecognized statement type.\n");
+            printf("type de declaration non reconnue.\n");
     }
 }
 
@@ -217,7 +238,7 @@ void repl(void) {
                 case (META_COMMAND_SUCCESS):
                     continue;
                 case (META_COMMAND_UNRECOGNIZED_COMMAND):
-                    printf("Unrecognized command '%s'\n", input_buffer->buffer);
+                    printf("commande non reconnue '%s'\n", input_buffer->buffer);
                     continue;
             }
         }
@@ -225,31 +246,16 @@ void repl(void) {
         Statement statement;
         switch (prepare_statement(input_buffer, &statement)) {
             case (PREPARE_SUCCESS):
-                printf("Recognized statement.\n");
+                printf("declaration reconnue.\n");
                 break;
             case (PREPARE_UNRECOGNIZED_STATEMENT):
-                printf("Unrecognized keyword at start of '%s'.\n", input_buffer->buffer);
+                printf("clavier non reconnu au debut de '%s'.\n", input_buffer->buffer);
                 continue;
         }
 
-        switch (statement.type) {
-            case STATEMENT_INSERT:
-                if (prepare_insert(input_buffer, &statement) == PREPARE_SUCCESS) {
-                    printf("Insert completed.\n");
-                } else {
-                    printf("Insert failed.\n");
-                }
-                break;
-
-            case STATEMENT_SELECT:
-                execute_select();
-                break;
-
-            default:
-                printf("Unrecognized statement type.\n");
-                break;
-        }
+        execute_statement(input_buffer, &statement);
     }
 
     close_input_buffer(input_buffer);
 }
+
