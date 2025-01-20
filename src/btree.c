@@ -134,3 +134,4 @@ void btree_demo() {
     printf("Arbre binaire apres suppression d'un ID inexistant :\n");
     inorder(root);
 }
+
